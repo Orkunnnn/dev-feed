@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from "react";
 import type { Article } from "@/types/feed";
 import { formatDate } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,6 +16,8 @@ interface QuoteBlock {
   text: string;
   owner?: string;
 }
+
+const HOVER_PREFETCH_DELAY_MS = 320;
 
 function decodeBasicEntities(input: string): string {
   return input
@@ -64,13 +67,43 @@ function parseQuoteBlock(text: string): QuoteBlock | null {
 export function ArticleCard({ article, isRead, onPrefetch, onSelect }: Props) {
   const quoteBlock = parseQuoteBlock(article.title) ?? parseQuoteBlock(article.excerpt);
   const isReadChecked = isRead === true;
+  const hoverPrefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHoverPrefetchTimeout = useCallback(() => {
+    if (hoverPrefetchTimeoutRef.current) {
+      clearTimeout(hoverPrefetchTimeoutRef.current);
+      hoverPrefetchTimeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearHoverPrefetchTimeout, [clearHoverPrefetchTimeout]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (!onPrefetch) {
+      return;
+    }
+
+    clearHoverPrefetchTimeout();
+    hoverPrefetchTimeoutRef.current = setTimeout(() => {
+      onPrefetch();
+      hoverPrefetchTimeoutRef.current = null;
+    }, HOVER_PREFETCH_DELAY_MS);
+  }, [clearHoverPrefetchTimeout, onPrefetch]);
+
+  const handleMouseLeave = clearHoverPrefetchTimeout;
+
+  const handleTouchStart = useCallback(() => {
+    clearHoverPrefetchTimeout();
+    onPrefetch?.();
+  }, [clearHoverPrefetchTimeout, onPrefetch]);
 
   return (
     <Card
       className="cursor-pointer"
       onClick={onSelect}
-      onMouseEnter={onPrefetch}
-      onTouchStart={onPrefetch}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onTouchStart={handleTouchStart}
     >
       <CardHeader>
         <div className="flex items-start justify-between">

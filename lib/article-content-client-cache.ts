@@ -13,9 +13,14 @@ interface TimedCacheEntry<T> {
 const ARTICLE_CACHE_TTL_MS = 5 * 60 * 1000;
 const ARTICLE_ERROR_CACHE_TTL_MS = 30 * 1000;
 const ARTICLE_CACHE_MAX_ENTRIES = 300;
+const MAX_CONCURRENT_PREFETCHES = 2;
 
 const articleCache = new Map<string, TimedCacheEntry<FetchArticleResult>>();
 const inFlight = new Map<string, Promise<FetchArticleResult>>();
+const prefetchQueue: Array<{ key: string; url: string; sourceFeedUrl?: string }> = [];
+const queuedPrefetchKeys = new Set<string>();
+
+let activePrefetches = 0;
 
 function normalizeComparableUrl(rawUrl: string): string | null {
   try {
@@ -109,8 +114,39 @@ export async function loadArticleContent(
   return request;
 }
 
+function runPrefetchQueue(): void {
+  while (activePrefetches < MAX_CONCURRENT_PREFETCHES && prefetchQueue.length > 0) {
+    const next = prefetchQueue.shift();
+    if (!next) {
+      return;
+    }
+
+    queuedPrefetchKeys.delete(next.key);
+
+    if (getCachedValue(next.key) || inFlight.has(next.key)) {
+      continue;
+    }
+
+    activePrefetches += 1;
+
+    void loadArticleContent(next.url, next.sourceFeedUrl)
+      .catch(() => {
+        // Ignore prefetch errors to keep UI responsive.
+      })
+      .finally(() => {
+        activePrefetches -= 1;
+        runPrefetchQueue();
+      });
+  }
+}
+
 export function prefetchArticleContent(url: string, sourceFeedUrl?: string): void {
-  void loadArticleContent(url, sourceFeedUrl).catch(() => {
-    // Ignore prefetch errors to keep UI responsive.
-  });
+  const key = getCacheKey(url, sourceFeedUrl);
+  if (getCachedValue(key) || inFlight.has(key) || queuedPrefetchKeys.has(key)) {
+    return;
+  }
+
+  prefetchQueue.push({ key, url, sourceFeedUrl });
+  queuedPrefetchKeys.add(key);
+  runPrefetchQueue();
 }
