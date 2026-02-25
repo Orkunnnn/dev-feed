@@ -232,6 +232,21 @@ function getParentTagName(node: ChildNode): string | undefined {
   return parentElement?.tagName.toLowerCase();
 }
 
+function isDeployToCloudflareBadge(element: HTMLElement): boolean {
+  if (element.tagName.toLowerCase() !== "img") {
+    return false;
+  }
+
+  const alt = (element.getAttribute("alt") || "").toLowerCase();
+  const src = (element.getAttribute("src") || "").toLowerCase();
+
+  if (alt.includes("deploy to cloudflare")) {
+    return true;
+  }
+
+  return src.includes("cloudflare") && src.includes("deploy");
+}
+
 function toReactNode(node: ChildNode, key: string): ReactNode {
   if (node.nodeType === 3) {
     const text = node.textContent || "";
@@ -314,6 +329,12 @@ function toReactNode(node: ChildNode, key: string): ReactNode {
 
     const reactAttrName = attrName === "srcset" ? "srcSet" : attrName;
     props[reactAttrName] = attr.value;
+  }
+
+  if (isDeployToCloudflareBadge(element)) {
+    props.style = {
+      borderRadius: 0,
+    };
   }
 
   if (VOID_TAGS.has(tag)) {
