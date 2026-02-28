@@ -77,8 +77,18 @@ const GLOBAL_ATTRIBUTES = new Set(["title"]);
 
 const TAG_ATTRIBUTES: Record<string, Set<string>> = {
   a: new Set(["href", "target", "rel"]),
-  img: new Set(["src", "alt", "width", "height", "loading"]),
-  source: new Set(["src", "srcset", "type", "media"]),
+  img: new Set([
+    "src",
+    "srcset",
+    "sizes",
+    "alt",
+    "width",
+    "height",
+    "loading",
+    "decoding",
+    "fetchpriority",
+  ]),
+  source: new Set(["src", "srcset", "sizes", "type", "media"]),
   code: new Set(["class"]),
   pre: new Set(["class"]),
   span: new Set(["class"]),
@@ -350,8 +360,42 @@ function toReactNode(node: ChildNode, key: string): ReactNode {
       continue;
     }
 
-    const reactAttrName = attrName === "srcset" ? "srcSet" : attrName;
+    const reactAttrName =
+      attrName === "srcset"
+        ? "srcSet"
+        : attrName === "fetchpriority"
+          ? "fetchPriority"
+          : attrName;
     props[reactAttrName] = attr.value;
+  }
+
+  if (tag === "img") {
+    const existingSrc = typeof props.src === "string" ? props.src.trim() : "";
+    const fallbackSrc =
+      element.getAttribute("data-src")?.trim() ||
+      element.getAttribute("data-lazy-src")?.trim() ||
+      element.getAttribute("data-original")?.trim();
+
+    if ((!existingSrc || existingSrc.startsWith("data:image/")) && fallbackSrc) {
+      props.src = fallbackSrc;
+    }
+
+    const existingSrcSet =
+      typeof props.srcSet === "string" ? props.srcSet.trim() : "";
+    const fallbackSrcSet =
+      element.getAttribute("data-srcset")?.trim() ||
+      element.getAttribute("data-lazy-srcset")?.trim();
+
+    if (!existingSrcSet && fallbackSrcSet) {
+      props.srcSet = fallbackSrcSet;
+      if (typeof props.sizes !== "string" || !props.sizes.trim()) {
+        props.sizes = "100vw";
+      }
+    }
+
+    props.loading = "eager";
+    props.decoding = "async";
+    props.fetchPriority = "high";
   }
 
   if (isDeployToCloudflareBadge(element)) {

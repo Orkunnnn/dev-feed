@@ -600,9 +600,19 @@ function sanitizeArticleHtml(rawHtml: string): string {
     ]),
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
-      img: ["src", "alt", "width", "height", "loading"],
+      img: [
+        "src",
+        "srcset",
+        "sizes",
+        "alt",
+        "width",
+        "height",
+        "loading",
+        "decoding",
+        "fetchpriority",
+      ],
       a: ["href", "title", "target", "rel"],
-      source: ["src", "srcset", "type", "media"],
+      source: ["src", "srcset", "sizes", "type", "media"],
       span: ["class"],
       code: ["class", "data-language", "data-lang"],
       pre: ["class", "data-language", "data-lang"],
@@ -618,6 +628,45 @@ function sanitizeArticleHtml(rawHtml: string): string {
           rel: "noopener noreferrer",
         },
       }),
+      img: (tagName, attribs) => {
+        const src = attribs.src?.trim();
+        const fallbackSrc =
+          attribs["data-src"]?.trim() ||
+          attribs["data-lazy-src"]?.trim() ||
+          attribs["data-original"]?.trim();
+        const normalizedSrc =
+          src && !src.startsWith("data:image/") ? src : fallbackSrc || src;
+
+        const srcSet = attribs.srcset?.trim();
+        const fallbackSrcSet =
+          attribs["data-srcset"]?.trim() || attribs["data-lazy-srcset"]?.trim();
+        const normalizedSrcSet = srcSet || fallbackSrcSet;
+
+        const sizes = attribs.sizes?.trim();
+
+        const nextAttribs: Record<string, string> = {
+          ...attribs,
+          loading: "eager",
+          decoding: "async",
+          fetchpriority: "high",
+        };
+
+        if (normalizedSrc) {
+          nextAttribs.src = normalizedSrc;
+        }
+
+        if (normalizedSrcSet) {
+          nextAttribs.srcset = normalizedSrcSet;
+          nextAttribs.sizes = sizes || "100vw";
+        } else if (sizes) {
+          nextAttribs.sizes = sizes;
+        }
+
+        return {
+          tagName,
+          attribs: nextAttribs,
+        };
+      },
     },
     exclusiveFilter: (frame) => {
       if (frame.tag !== "span") return false;

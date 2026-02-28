@@ -16,7 +16,10 @@ import { InboxRow } from "./inbox-row";
 import { useFeedContext } from "./feed-provider";
 import { useArticleHeaderContext } from "./article-header-context";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { prefetchArticleContent } from "@/lib/article-content-client-cache";
+import {
+  loadArticleContent,
+  prefetchArticleContent,
+} from "@/lib/article-content-client-cache";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -854,7 +857,7 @@ export function ArticleList({ articles }: Props) {
 
   const handleOpenArticle = useCallback((article: Article) => {
     setArticleReadState(article, true);
-    prefetchArticleContent(article.link, article.sourceFeedUrl);
+    void loadArticleContent(article.link, article.sourceFeedUrl);
     setSelectedArticleInUrl(article.id, "push");
   }, [setArticleReadState, setSelectedArticleInUrl]);
 

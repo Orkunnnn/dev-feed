@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { Article } from "@/types/feed";
+import { Tooltip as TooltipPrimitive } from "radix-ui";
 import {
   decodeHtmlEntities,
   extractReadTimeLabelFromContent,
@@ -11,6 +12,14 @@ import {
 } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { ArrowLeft, ArrowUpRight, Loader2 } from "lucide-react";
 import { type FetchArticleResult } from "@/lib/actions/fetch-article-content";
 import {
@@ -23,6 +32,12 @@ interface Props {
   article: Article;
   onBack: () => void;
   layout?: "page" | "pane";
+}
+
+interface SubtitleAuthor {
+  name: string;
+  profileUrl: string;
+  avatarUrl?: string;
 }
 
 function normalizeText(value: string): string {
@@ -92,10 +107,7 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
       return [];
     }
 
-    const uniqueAuthors = new Map<
-      string,
-      { name: string; profileUrl: string; avatarUrl?: string }
-    >();
+    const uniqueAuthors = new Map<string, SubtitleAuthor>();
 
     for (const author of content.authors) {
       const name = normalizeSubtitleText(author.name).replace(
@@ -151,6 +163,16 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
     [subtitleAuthors]
   );
 
+  const visibleSubtitleAuthors = useMemo(
+    () => subtitleAuthors.slice(0, 2),
+    [subtitleAuthors]
+  );
+
+  const hiddenSubtitleAuthors = useMemo(
+    () => subtitleAuthors.slice(2),
+    [subtitleAuthors]
+  );
+
   const isSummaryOnly = Boolean(
     content && !("error" in content) && content.contentMode === "summary"
   );
@@ -168,6 +190,67 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
       stale = true;
     };
   }, [article.link, article.sourceFeedUrl]);
+
+  useEffect(() => {
+    if (!content || "error" in content || !content.content.trim()) {
+      return;
+    }
+
+    if (!/<img[\s>]/i.test(content.content)) {
+      return;
+    }
+
+    if (typeof DOMParser === "undefined" || typeof Image === "undefined") {
+      return;
+    }
+
+    const parser = new DOMParser();
+    const document = parser.parseFromString(content.content, "text/html");
+    const preloadTargets = Array.from(document.querySelectorAll("img"));
+    const preloaders: HTMLImageElement[] = [];
+
+    for (const imageElement of preloadTargets) {
+      const src = imageElement.getAttribute("src")?.trim();
+      const fallbackSrc =
+        imageElement.getAttribute("data-src")?.trim() ||
+        imageElement.getAttribute("data-lazy-src")?.trim() ||
+        imageElement.getAttribute("data-original")?.trim();
+      const resolvedSrc =
+        src && !src.startsWith("data:image/") ? src : fallbackSrc || src;
+
+      const srcSet =
+        imageElement.getAttribute("srcset")?.trim() ||
+        imageElement.getAttribute("data-srcset")?.trim() ||
+        imageElement.getAttribute("data-lazy-srcset")?.trim();
+      const sizes = imageElement.getAttribute("sizes")?.trim() || "100vw";
+
+      if (!resolvedSrc && !srcSet) {
+        continue;
+      }
+
+      const preloader = new Image();
+      preloader.decoding = "async";
+      preloader.fetchPriority = "high";
+
+      if (srcSet) {
+        preloader.srcset = srcSet;
+        preloader.sizes = sizes;
+      }
+
+      if (resolvedSrc) {
+        preloader.src = resolvedSrc;
+      }
+
+      preloaders.push(preloader);
+    }
+
+    return () => {
+      for (const preloader of preloaders) {
+        preloader.src = "";
+        preloader.srcset = "";
+      }
+    };
+  }, [content]);
 
   return (
     <div
@@ -239,51 +322,180 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
         <div
           className={
             isPaneLayout
-              ? "mx-auto mt-4 grid w-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center text-sm text-muted-foreground"
-              : "mx-auto mt-5 grid w-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center text-sm text-muted-foreground"
+              ? "mx-auto mt-4 grid w-full max-w-4xl grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)_minmax(0,1fr)] items-center text-sm text-muted-foreground"
+              : "mx-auto mt-5 grid w-full max-w-4xl grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)_minmax(0,1fr)] items-center text-sm text-muted-foreground"
           }
         >
-          <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
-          <div className="flex items-center justify-center" style={{ gap: 8 }}>
+          <time dateTime={article.publishedAt} className="truncate">
+            {formatDate(article.publishedAt)}
+          </time>
+          <div className="flex min-w-0 items-center justify-center" style={{ gap: 8 }}>
             {showMetadataAuthor ? (
               subtitleAuthors.length > 0 ? (
-                <span
-                  className="inline-flex items-center"
-                  style={{ gap: shouldUseAuthorComma ? 2 : 8 }}
-                >
-                  {subtitleAuthors.map((author, index) => (
-                    <Fragment key={author.profileUrl}>
-                      {shouldUseAuthorComma && index > 0 ? ",\u00a0" : null}
-                      <span className="inline-flex items-center" style={{ gap: 4 }}>
-                        {author.avatarUrl ? (
-                          <span
-                            aria-hidden="true"
-                            style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: 9999,
-                              display: "inline-block",
-                              backgroundImage: `url(${author.avatarUrl})`,
-                              backgroundPosition: "center",
-                              backgroundSize: "cover",
-                              backgroundRepeat: "no-repeat",
-                            }}
-                          />
-                        ) : null}
-                        <a
-                          href={author.profileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-inherit transition-colors hover:text-foreground"
-                        >
-                          {author.name}
-                        </a>
-                      </span>
-                    </Fragment>
-                  ))}
-                </span>
-              ) : (
                 <>
+                  <Sheet>
+                    <SheetTrigger asChild>
+                      <button
+                        type="button"
+                        className="truncate text-muted-foreground transition-colors hover:text-foreground sm:hidden"
+                        aria-label={`Show ${subtitleAuthors.length} contributors`}
+                      >
+                        {subtitleAuthors.length} contributor
+                        {subtitleAuthors.length === 1 ? "" : "s"}
+                      </button>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className="max-h-[70dvh]">
+                      <SheetHeader>
+                        <SheetTitle>Contributors</SheetTitle>
+                        <SheetDescription>
+                          {subtitleAuthors.length} contributor
+                          {subtitleAuthors.length === 1 ? "" : "s"} for this article
+                        </SheetDescription>
+                      </SheetHeader>
+                      <div className="overflow-y-auto px-4 pb-4">
+                        <div className="space-y-1">
+                          {subtitleAuthors.map((author) => (
+                            <a
+                              key={`sheet-author-${author.profileUrl}`}
+                              href={author.profileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-1 py-1"
+                            >
+                              {author.avatarUrl ? (
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: 9999,
+                                    display: "inline-block",
+                                    backgroundImage: `url(${author.avatarUrl})`,
+                                    backgroundPosition: "center",
+                                    backgroundSize: "cover",
+                                    backgroundRepeat: "no-repeat",
+                                  }}
+                                />
+                              ) : (
+                                <span className="inline-flex size-5 items-center justify-center rounded-full bg-muted text-[10px] uppercase text-muted-foreground">
+                                  {author.name.charAt(0)}
+                                </span>
+                              )}
+                              <span className="truncate text-sm text-foreground">
+                                {author.name}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    </SheetContent>
+                  </Sheet>
+
+                  <span className="hidden min-w-0 items-center sm:inline-flex" style={{ gap: 8 }}>
+                    <span
+                      className="inline-flex min-w-0 items-center"
+                      style={{ gap: shouldUseAuthorComma ? 2 : 8 }}
+                    >
+                      {visibleSubtitleAuthors.map((author, index) => (
+                        <Fragment key={author.profileUrl}>
+                          {shouldUseAuthorComma && index > 0 ? ",\u00a0" : null}
+                          <span
+                            className="inline-flex min-w-0 items-center whitespace-nowrap"
+                            style={{ gap: 4 }}
+                          >
+                            {author.avatarUrl ? (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 20,
+                                  height: 20,
+                                  borderRadius: 9999,
+                                  display: "inline-block",
+                                  backgroundImage: `url(${author.avatarUrl})`,
+                                  backgroundPosition: "center",
+                                  backgroundSize: "cover",
+                                  backgroundRepeat: "no-repeat",
+                                }}
+                              />
+                            ) : null}
+                            <a
+                              href={author.profileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="max-w-[12rem] truncate text-inherit transition-colors hover:text-foreground"
+                            >
+                              {author.name}
+                            </a>
+                          </span>
+                        </Fragment>
+                      ))}
+                    </span>
+
+                    {hiddenSubtitleAuthors.length > 0 ? (
+                      <TooltipPrimitive.Provider delayDuration={120}>
+                        <TooltipPrimitive.Root>
+                          <TooltipPrimitive.Trigger asChild>
+                            <button
+                              type="button"
+                              className="cursor-help appearance-none border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground"
+                              aria-label={`Show all ${subtitleAuthors.length} authors`}
+                            >
+                              +{hiddenSubtitleAuthors.length} more
+                            </button>
+                          </TooltipPrimitive.Trigger>
+                          <TooltipPrimitive.Portal>
+                            <TooltipPrimitive.Content
+                              side="bottom"
+                              align="center"
+                              sideOffset={8}
+                              className="z-50 max-h-72 w-64 overflow-y-auto border bg-popover p-2 text-popover-foreground shadow-md"
+                            >
+                              <p className="px-1 pb-1 text-xs text-muted-foreground">
+                                {subtitleAuthors.length} contributors
+                              </p>
+                              <div className="space-y-1">
+                                {subtitleAuthors.map((author) => (
+                                  <a
+                                    key={`tooltip-author-${author.profileUrl}`}
+                                    href={author.profileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-1 py-1"
+                                  >
+                                    {author.avatarUrl ? (
+                                      <span
+                                        aria-hidden="true"
+                                        style={{
+                                          width: 20,
+                                          height: 20,
+                                          borderRadius: 9999,
+                                          display: "inline-block",
+                                          backgroundImage: `url(${author.avatarUrl})`,
+                                          backgroundPosition: "center",
+                                          backgroundSize: "cover",
+                                          backgroundRepeat: "no-repeat",
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="inline-flex size-5 items-center justify-center rounded-full bg-muted text-[10px] uppercase text-muted-foreground">
+                                        {author.name.charAt(0)}
+                                      </span>
+                                    )}
+                                    <span className="truncate text-xs text-foreground">
+                                      {author.name}
+                                    </span>
+                                  </a>
+                                ))}
+                              </div>
+                            </TooltipPrimitive.Content>
+                          </TooltipPrimitive.Portal>
+                        </TooltipPrimitive.Root>
+                      </TooltipPrimitive.Provider>
+                    ) : null}
+                  </span>
+                </>
+              ) : (
+                <span className="inline-flex min-w-0 items-center" style={{ gap: 8 }}>
                   {authorAvatarUrl && (
                     <span
                       aria-hidden="true"
@@ -299,12 +511,12 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
                       }}
                     />
                   )}
-                  {authorName && <span>{authorName}</span>}
-                </>
+                  {authorName && <span className="max-w-[16rem] truncate">{authorName}</span>}
+                </span>
               )
             ) : null}
           </div>
-          <span className="text-right">{readTimeLabel || ""}</span>
+          <span className="truncate text-right">{readTimeLabel || ""}</span>
         </div>
       </div>
 
