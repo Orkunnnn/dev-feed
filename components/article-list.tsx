@@ -951,7 +951,7 @@ export function ArticleList({ articles }: Props) {
           />
         </div>
 
-        <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+        <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
           <p>{`${filtered.length} of ${folderArticles.length} messages`}</p>
           {isLoadingCustom && customArticles.length === 0 ? (
             <p>Syncing custom feeds...</p>
