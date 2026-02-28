@@ -72,7 +72,7 @@ export function InboxRow({
         onSelect();
       }}
       className={cn(
-        "group grid grid-cols-[auto_minmax(0,7.5rem)_minmax(0,1fr)_auto] items-center gap-3 border-b px-3 py-2.5 text-left transition-colors cursor-pointer sm:grid-cols-[auto_minmax(0,9rem)_minmax(0,1fr)_auto]",
+        "group grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 border-b px-3 py-3 text-left transition-colors cursor-pointer sm:grid-cols-[auto_minmax(0,9rem)_minmax(0,1fr)_auto] sm:items-center sm:py-2.5",
         isSelected ? "bg-primary/10" : "bg-card hover:bg-muted/35"
       )}
       aria-label={`${isRead ? "Read" : "Unread"}: ${article.title}`}
@@ -85,13 +85,50 @@ export function InboxRow({
           onToggleRead();
         }}
         aria-label={isRead ? "Mark as unread" : "Mark as read"}
-      >
+        >
         {isRead ? <CheckCircle2 className="size-3.5" /> : <Circle className="size-3.5" />}
       </Button>
 
+      <div className="min-w-0 space-y-1 sm:hidden">
+        <div className="flex items-center justify-between gap-2">
+          <p
+            className={cn(
+              "truncate text-xs",
+              isRead ? "opacity-75" : "font-semibold"
+            )}
+            style={{ color: article.sourceColor }}
+          >
+            {article.sourceName}
+          </p>
+          <time
+            dateTime={article.publishedAt}
+            className={cn(
+              "shrink-0 text-[11px]",
+              isRead ? "text-muted-foreground" : "text-foreground"
+            )}
+          >
+            {formatDate(article.publishedAt)}
+          </time>
+        </div>
+        <p
+          className={cn(
+            "text-sm leading-snug",
+            isRead ? "text-foreground/90" : "font-semibold text-foreground"
+          )}
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {article.title}
+        </p>
+      </div>
+
       <p
         className={cn(
-          "truncate text-xs sm:text-sm",
+          "hidden truncate text-xs sm:block sm:text-sm",
           isRead ? "opacity-75" : "font-semibold"
         )}
         style={{ color: article.sourceColor }}
@@ -99,7 +136,7 @@ export function InboxRow({
         {article.sourceName}
       </p>
 
-      <div className="min-w-0">
+      <div className="hidden min-w-0 sm:block">
         <p className="truncate text-xs sm:text-sm">
           <span className={cn(!isRead && "font-semibold")}>{article.title}</span>
           {article.excerpt ? (
@@ -108,7 +145,7 @@ export function InboxRow({
         </p>
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="hidden items-center justify-end sm:flex">
         <div className="hidden items-center gap-1 group-hover:flex group-focus-within:flex">
           <Button
             variant="ghost"
