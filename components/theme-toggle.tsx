@@ -3,14 +3,23 @@
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function ThemeToggle() {
+interface Props {
+  compact?: boolean;
+}
+
+export function ThemeToggle({ compact = false }: Props) {
   const { setTheme, resolvedTheme } = useTheme();
 
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size={compact ? "icon-sm" : "icon"}
+      className={cn(
+        "transition-[width,height,padding,transform] duration-300 ease-out",
+        compact ? "scale-95" : "scale-100"
+      )}
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
       <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />

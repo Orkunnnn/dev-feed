@@ -26,8 +26,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useFeedContext } from "./feed-provider";
+import { cn } from "@/lib/utils";
 
-export function FeedSettings() {
+interface Props {
+  compact?: boolean;
+}
+
+export function FeedSettings({ compact = false }: Props) {
   const { customFeeds, allSources, addFeed, removeFeed } = useFeedContext();
   const [feedUrl, setFeedUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -60,7 +65,14 @@ export function FeedSettings() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon-sm">
+        <Button
+          variant="ghost"
+          size={compact ? "icon-xs" : "icon-sm"}
+          className={cn(
+            "transition-[width,height,padding,transform] duration-300 ease-out",
+            compact ? "scale-95" : "scale-100"
+          )}
+        >
           <Settings className="size-4" />
           <span className="sr-only">Feed settings</span>
         </Button>

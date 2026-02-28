@@ -22,6 +22,7 @@ import { ArticleContent } from "./article-content";
 interface Props {
   article: Article;
   onBack: () => void;
+  layout?: "page" | "pane";
 }
 
 function normalizeText(value: string): string {
@@ -36,7 +37,8 @@ function normalizeSubtitleText(value: string): string {
   );
 }
 
-export function ArticleReader({ article, onBack }: Props) {
+export function ArticleReader({ article, onBack, layout = "page" }: Props) {
+  const isPaneLayout = layout === "pane";
   const [resolvedContent, setResolvedContent] = useState<{
     link: string;
     result: FetchArticleResult;
@@ -168,14 +170,35 @@ export function ArticleReader({ article, onBack }: Props) {
   }, [article.link, article.sourceFeedUrl]);
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div
+      className={
+        isPaneLayout
+          ? "animate-in fade-in slide-in-from-right-2 duration-300"
+          : "animate-in fade-in slide-in-from-bottom-4 duration-300"
+      }
+    >
       {/* Reader header */}
-      <div className="mb-6 grid grid-cols-[auto_1fr_auto] items-center gap-3">
-        <Button className="hover:cursor-pointer" variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="size-4" />
-          Back to feed
-        </Button>
-        <div className="flex items-center justify-center text-sm">
+      <div
+        data-header-compact-trigger
+        className={
+          isPaneLayout
+            ? "mb-4 grid grid-cols-[1fr_auto] items-center gap-3"
+            : "mb-6 grid grid-cols-[auto_1fr_auto] items-center gap-3"
+        }
+      >
+        {!isPaneLayout ? (
+          <Button
+            data-header-back-to-feed
+            className="hover:cursor-pointer"
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+          >
+            <ArrowLeft className="size-4" />
+            Back to feed
+          </Button>
+        ) : null}
+        <div className={isPaneLayout ? "flex items-center text-sm" : "flex items-center justify-center text-sm"}>
           <p style={{ color: article.sourceColor }}>{article.sourceName}</p>
         </div>
         <Button variant="outline" size="sm" asChild>
@@ -192,15 +215,33 @@ export function ArticleReader({ article, onBack }: Props) {
 
       {/* Article header */}
       <div className="mb-2">
-        <h1 className="mx-auto max-w-5xl text-balance text-center text-3xl font-medium leading-tight tracking-tight md:text-5xl lg:text-6xl">
+        <h1
+          className={
+            isPaneLayout
+              ? "mx-auto max-w-4xl text-balance text-left text-2xl font-medium leading-tight tracking-tight md:text-3xl"
+              : "mx-auto max-w-5xl text-balance text-center text-3xl font-medium leading-tight tracking-tight md:text-5xl lg:text-6xl"
+          }
+        >
           {article.title}
         </h1>
         {subtitle ? (
-          <p className="mx-auto mt-4 max-w-4xl text-balance text-center text-xl text-foreground/90 md:mt-5 md:text-2xl">
+          <p
+            className={
+              isPaneLayout
+                ? "mx-auto mt-3 max-w-4xl text-balance text-left text-base text-foreground/90 md:text-lg"
+                : "mx-auto mt-4 max-w-4xl text-balance text-center text-xl text-foreground/90 md:mt-5 md:text-2xl"
+            }
+          >
             {subtitle}
           </p>
         ) : null}
-        <div className="mx-auto mt-5 grid w-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center text-sm text-muted-foreground">
+        <div
+          className={
+            isPaneLayout
+              ? "mx-auto mt-4 grid w-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center text-sm text-muted-foreground"
+              : "mx-auto mt-5 grid w-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center text-sm text-muted-foreground"
+          }
+        >
           <time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time>
           <div className="flex items-center justify-center" style={{ gap: 8 }}>
             {showMetadataAuthor ? (
@@ -309,11 +350,13 @@ export function ArticleReader({ article, onBack }: Props) {
       )}
 
       {!isLoading && content && !("error" in content) && !isSummaryOnly && (
-        <ArticleContent
-          html={content.content}
-          articleLink={article.link}
-          sourceId={article.sourceId}
-        />
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <ArticleContent
+            html={content.content}
+            articleLink={article.link}
+            sourceId={article.sourceId}
+          />
+        </div>
       )}
     </div>
   );

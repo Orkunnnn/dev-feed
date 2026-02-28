@@ -3,6 +3,10 @@ import Parser from "rss-parser";
 import { feedSources, type FeedSource } from "@/config/feeds";
 import type { Article, FeedFetchResult } from "@/types/feed";
 import {
+  FEED_LOOKBACK_DAYS,
+  rankAndFilterArticlesForDeveloperFeed,
+} from "@/lib/feed-policy";
+import {
   decodeHtmlEntities,
   extractFeedAuthorName,
   extractFeedReadTimeLabel,
@@ -88,15 +92,34 @@ function normalizeArticle(item: Parser.Item, source: FeedSource): Article {
   };
 }
 
+function isWithinFetchWindow(publishedAt: string, nowMs: number): boolean {
+  const publishedAtMs = new Date(publishedAt).getTime();
+  if (!Number.isFinite(publishedAtMs)) {
+    return false;
+  }
+
+  const ageMs = nowMs - publishedAtMs;
+  if (ageMs < 0) {
+    return false;
+  }
+
+  return ageMs <= FEED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export async function fetchSingleFeed(
   source: FeedSource
 ): Promise<FeedFetchResult> {
   try {
     const feed = await parser.parseURL(source.feedUrl);
-    const articles = (feed.items || [])
+    const nowMs = Date.now();
+    const normalizedArticles = (feed.items || [])
       .filter((item) => matchesSourceCategoryFilter(item, source))
-      .slice(0, 30)
-      .map((item) => normalizeArticle(item, source));
+      .map((item) => normalizeArticle(item, source))
+      .filter((article) => isWithinFetchWindow(article.publishedAt, nowMs))
+      .slice(0, 30);
+
+    const articles = rankAndFilterArticlesForDeveloperFeed(normalizedArticles, [source]);
+
     return { sourceId: source.id, articles };
   } catch (error) {
     console.error(`Failed to fetch feed: ${source.name}`, error);
@@ -122,12 +145,7 @@ export async function fetchFeedsByUrls(
     }
   }
 
-  articles.sort(
-    (a, b) =>
-      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-  );
-
-  return articles;
+  return rankAndFilterArticlesForDeveloperFeed(articles, sources);
 }
 
 export async function fetchAllFeeds(): Promise<Article[]> {
@@ -142,10 +160,5 @@ export async function fetchAllFeeds(): Promise<Article[]> {
     }
   }
 
-  articles.sort(
-    (a, b) =>
-      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-  );
-
-  return articles;
+  return rankAndFilterArticlesForDeveloperFeed(articles, feedSources);
 }

@@ -1,7 +1,9 @@
 import https from "node:https";
 import { NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
+import type { FeedSource } from "@/config/feeds";
 import type { Article, ValidateFeedResponse } from "@/types/feed";
+import { rankAndFilterArticlesForDeveloperFeed } from "@/lib/feed-policy";
 import {
   decodeHtmlEntities,
   extractFeedAuthorName,
@@ -61,7 +63,18 @@ export async function POST(
         ? "OpenAI"
         : undefined;
 
-    const articles: Article[] = (feed.items || []).slice(0, 30).map((item) => {
+    const sourceForValidation: FeedSource = {
+      id: "",
+      name,
+      feedUrl,
+      website,
+      color: "",
+      tier: "normal",
+      lookbackDays: 14,
+      maxUnreadVisible: 2,
+    };
+
+    const normalizedArticles: Article[] = (feed.items || []).slice(0, 30).map((item) => {
       const readingTimeLabel = extractFeedReadTimeLabel(item as Record<string, unknown>);
       const authorName = extractFeedAuthorName(item as Record<string, unknown>);
       const resolvedAuthorName = authorName || openaiAuthorFallback;
@@ -71,7 +84,7 @@ export async function POST(
       return {
         id: `custom::${item.guid || item.link || item.title || ""}`,
         title: decodeHtmlEntities(item.title?.trim() || "Untitled").trim() || "Untitled",
-        sourceId: "",
+        sourceId: sourceForValidation.id,
         sourceName: name,
         sourceColor: "",
         sourceFeedUrl: feedUrl,
@@ -83,6 +96,11 @@ export async function POST(
         categories: item.categories || [],
       };
     });
+
+    const articles = rankAndFilterArticlesForDeveloperFeed(
+      normalizedArticles,
+      [sourceForValidation]
+    );
 
     return NextResponse.json({
       success: true,

@@ -39,7 +39,7 @@ export function SourceFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="default">
           <Filter className="size-3.5" />
           Filters
         </Button>
