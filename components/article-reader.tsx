@@ -171,6 +171,7 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
 
   return (
     <div
+      data-reading-progress-root
       className={
         isPaneLayout
           ? "animate-in fade-in slide-in-from-right-2 duration-300"

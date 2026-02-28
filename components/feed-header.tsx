@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 export function FeedHeader() {
   const [isCompact, setIsCompact] = useState(false);
+  const [readingProgress, setReadingProgress] = useState(0);
   const headerRef = useRef<HTMLElement | null>(null);
   const { isArticleActive, articleLink, onBack } = useArticleHeaderContext();
 
@@ -24,7 +25,37 @@ export function FeedHeader() {
         return;
       }
 
+      const setProgressValue = (next: number) => {
+        setReadingProgress((prev) => {
+          if (Math.abs(prev - next) < 0.001) {
+            return prev;
+          }
+
+          return next;
+        });
+      };
+
       if (isArticleActive) {
+        const readingRoot = document.querySelector<HTMLElement>(
+          "[data-reading-progress-root]"
+        );
+
+        if (readingRoot) {
+          const readingRootRect = readingRoot.getBoundingClientRect();
+          const readingRootTop = readingRootRect.top + window.scrollY;
+          const readingRootHeight = readingRootRect.height;
+          const maxScrollable = Math.max(readingRootHeight - window.innerHeight, 0);
+
+          if (maxScrollable <= 0) {
+            setProgressValue(window.scrollY >= readingRootTop ? 1 : 0);
+          } else {
+            const nextProgress = (window.scrollY - readingRootTop) / maxScrollable;
+            setProgressValue(Math.min(1, Math.max(0, nextProgress)));
+          }
+        } else {
+          setProgressValue(0);
+        }
+
         const backButton = document.querySelector<HTMLElement>(
           "[data-header-back-to-feed]"
         );
@@ -40,6 +71,8 @@ export function FeedHeader() {
         setIsCompact((prev) => (prev === next ? prev : next));
         return;
       }
+
+      setProgressValue(0);
 
       const trigger = document.querySelector<HTMLElement>(
         "[data-header-compact-trigger]"
@@ -167,6 +200,20 @@ export function FeedHeader() {
               </div>
             </div>
           </div>
+
+          {isCompact && isArticleActive ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-muted/45">
+              <div
+                role="progressbar"
+                aria-label="Reading progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(readingProgress * 100)}
+                className="h-full origin-left bg-primary transition-transform duration-150 ease-out motion-reduce:transition-none"
+                style={{ transform: `scaleX(${readingProgress})` }}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </header>
