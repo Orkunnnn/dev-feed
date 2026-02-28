@@ -26,6 +26,7 @@ import {
   getCachedArticleContent,
   loadArticleContent,
 } from "@/lib/article-content-client-cache";
+import { buildYouTubeEmbedUrl, extractYouTubeVideoId } from "@/lib/youtube";
 import { ArticleContent } from "./article-content";
 
 interface Props {
@@ -54,6 +55,12 @@ function normalizeSubtitleText(value: string): string {
 
 export function ArticleReader({ article, onBack, layout = "page" }: Props) {
   const isPaneLayout = layout === "pane";
+  const youtubeVideoId = useMemo(() => extractYouTubeVideoId(article.link), [article.link]);
+  const isYouTubeVideo = Boolean(youtubeVideoId);
+  const youtubeEmbedUrl = useMemo(
+    () => (youtubeVideoId ? buildYouTubeEmbedUrl(youtubeVideoId) : null),
+    [youtubeVideoId]
+  );
   const [resolvedContent, setResolvedContent] = useState<{
     link: string;
     result: FetchArticleResult;
@@ -62,8 +69,12 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
     return cached ? { link: article.link, result: cached } : null;
   });
 
-  const isLoading = !resolvedContent || resolvedContent.link !== article.link;
-  const content = isLoading ? null : resolvedContent.result;
+  const isLoading =
+    !isYouTubeVideo && (!resolvedContent || resolvedContent.link !== article.link);
+  const content =
+    !isYouTubeVideo && resolvedContent && resolvedContent.link === article.link
+      ? resolvedContent.result
+      : null;
 
   const readTimeLabel = useMemo(() => {
     if (article.readingTimeLabel) {
@@ -178,6 +189,10 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
   );
 
   useEffect(() => {
+    if (isYouTubeVideo) {
+      return;
+    }
+
     let stale = false;
 
     loadArticleContent(article.link, article.sourceFeedUrl).then((result) => {
@@ -189,7 +204,7 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
     return () => {
       stale = true;
     };
-  }, [article.link, article.sourceFeedUrl]);
+  }, [article.link, article.sourceFeedUrl, isYouTubeVideo]);
 
   useEffect(() => {
     if (!content || "error" in content || !content.content.trim()) {
@@ -521,6 +536,30 @@ export function ArticleReader({ article, onBack, layout = "page" }: Props) {
       </div>
 
       <Separator className="mb-2" />
+
+      {isYouTubeVideo ? (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="mx-auto w-full max-w-5xl border bg-card">
+            <div className="aspect-video w-full bg-muted/25">
+              {youtubeEmbedUrl ? (
+                <iframe
+                  title={article.title}
+                  src={youtubeEmbedUrl}
+                  className="size-full"
+                  loading="eager"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Could not load this video.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Content */}
       {isLoading && (

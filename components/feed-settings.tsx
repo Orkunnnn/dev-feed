@@ -27,13 +27,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useFeedContext } from "./feed-provider";
 import { cn } from "@/lib/utils";
+import { isYouTubeFeedUrl } from "@/lib/youtube";
 
 interface Props {
   compact?: boolean;
 }
 
 export function FeedSettings({ compact = false }: Props) {
-  const { customFeeds, allSources, addFeed, removeFeed } = useFeedContext();
+  const {
+    customFeeds,
+    allSources,
+    addFeed,
+    updateFeedPreferences,
+    removeFeed,
+  } = useFeedContext();
   const [feedUrl, setFeedUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +99,7 @@ export function FeedSettings({ compact = false }: Props) {
               <Input
                 id="feed-url"
                 type="url"
-                placeholder="https://example.com/feed.xml"
+                placeholder="https://example.com/feed.xml or https://youtube.com/@channel"
                 value={feedUrl}
                 onChange={(e) => {
                   setFeedUrl(e.target.value);
@@ -138,6 +145,32 @@ export function FeedSettings({ compact = false }: Props) {
                       <p className="truncate text-xs text-muted-foreground">
                         {feed.feedUrl}
                       </p>
+                      {feed.isYouTube || isYouTubeFeedUrl(feed.feedUrl) ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <Button
+                            variant={feed.includeShorts === false ? "outline" : "secondary"}
+                            size="sm"
+                            onClick={() =>
+                              updateFeedPreferences(feed.id, {
+                                includeShorts: feed.includeShorts === false,
+                              })
+                            }
+                          >
+                            Shorts
+                          </Button>
+                          <Button
+                            variant={feed.includeLive === false ? "outline" : "secondary"}
+                            size="sm"
+                            onClick={() =>
+                              updateFeedPreferences(feed.id, {
+                                includeLive: feed.includeLive === false,
+                              })
+                            }
+                          >
+                            Live
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

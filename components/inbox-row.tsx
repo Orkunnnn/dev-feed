@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useRef } from "react";
-import { Bookmark, BookmarkCheck, CheckCircle2, Circle, Trash2 } from "lucide-react";
+import {
+  Bookmark,
+  BookmarkCheck,
+  CheckCircle2,
+  Circle,
+  FileText,
+  Trash2,
+  Youtube,
+} from "lucide-react";
 import type { Article } from "@/types/feed";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isYouTubeVideoUrl } from "@/lib/youtube";
 
 interface Props {
   article: Article;
@@ -31,6 +40,12 @@ export function InboxRow({
   onPrefetch,
 }: Props) {
   const hoverPrefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isYouTubeVideo = isYouTubeVideoUrl(article.link);
+  const sourceTypeIcon = isYouTubeVideo ? (
+    <Youtube className="size-3.5 shrink-0 text-red-500" aria-hidden="true" />
+  ) : (
+    <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+  );
 
   const clearHoverPrefetchTimeout = useCallback(() => {
     if (!hoverPrefetchTimeoutRef.current) {
@@ -98,7 +113,10 @@ export function InboxRow({
             )}
             style={{ color: article.sourceColor }}
           >
-            {article.sourceName}
+            <span className="flex min-w-0 items-center gap-1">
+              {sourceTypeIcon}
+              <span className="truncate">{article.sourceName}</span>
+            </span>
           </p>
           <time
             dateTime={article.publishedAt}
@@ -133,7 +151,10 @@ export function InboxRow({
         )}
         style={{ color: article.sourceColor }}
       >
-        {article.sourceName}
+        <span className="flex min-w-0 items-center gap-1">
+          {sourceTypeIcon}
+          <span className="truncate">{article.sourceName}</span>
+        </span>
       </p>
 
       <div className="hidden min-w-0 sm:block">

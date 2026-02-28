@@ -20,6 +20,7 @@ import {
   loadArticleContent,
   prefetchArticleContent,
 } from "@/lib/article-content-client-cache";
+import { isYouTubeVideoUrl } from "@/lib/youtube";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -857,7 +858,9 @@ export function ArticleList({ articles }: Props) {
 
   const handleOpenArticle = useCallback((article: Article) => {
     setArticleReadState(article, true);
-    void loadArticleContent(article.link, article.sourceFeedUrl);
+    if (!isYouTubeVideoUrl(article.link)) {
+      void loadArticleContent(article.link, article.sourceFeedUrl);
+    }
     setSelectedArticleInUrl(article.id, "push");
   }, [setArticleReadState, setSelectedArticleInUrl]);
 
@@ -875,6 +878,10 @@ export function ArticleList({ articles }: Props) {
     }
 
     for (const article of filtered.slice(0, 4)) {
+      if (isYouTubeVideoUrl(article.link)) {
+        continue;
+      }
+
       prefetchArticleContent(article.link, article.sourceFeedUrl);
     }
   }, [filtered, selectedArticle]);
@@ -1017,7 +1024,11 @@ export function ArticleList({ articles }: Props) {
                   isSelected={selectedArticle?.id === article.id}
                   isRead={isRead}
                   isSavedForLater={isSavedForLater}
-                  onPrefetch={() => prefetchArticleContent(article.link, article.sourceFeedUrl)}
+                  onPrefetch={
+                    isYouTubeVideoUrl(article.link)
+                      ? undefined
+                      : () => prefetchArticleContent(article.link, article.sourceFeedUrl)
+                  }
                   onSelect={() => handleOpenArticle(article)}
                   onToggleRead={() => setArticleReadState(article, !isRead)}
                   onToggleSavedForLater={() => {

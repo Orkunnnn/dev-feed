@@ -11,6 +11,12 @@ import {
   extractFeedAuthorName,
   extractFeedReadTimeLabel,
 } from "@/lib/utils";
+import {
+  isLikelyYouTubeShort,
+  isYouTubeFeedUrl,
+  isYouTubeUrl,
+  resolveYouTubeFeedUrl,
+} from "@/lib/youtube";
 
 function excerptFromRawContent(rawContent: string): string {
   if (!rawContent) return "";
@@ -69,7 +75,52 @@ function matchesSourceCategoryFilter(item: Parser.Item, source: FeedSource): boo
   );
 }
 
-function normalizeArticle(item: Parser.Item, source: FeedSource): Article {
+function isYouTubeSource(source: FeedSource): boolean {
+  if (source.isYouTube) {
+    return true;
+  }
+
+  return isYouTubeFeedUrl(source.feedUrl);
+}
+
+function isLikelyYouTubeLiveItem(item: Parser.Item): boolean {
+  const title = (item.title || "").toLowerCase();
+  const link = (item.link || "").toLowerCase();
+  const text = `${item.contentSnippet || ""} ${item.summary || ""}`.toLowerCase();
+
+  return (
+    link.includes("/live/") ||
+    /\blive\b/.test(title) ||
+    /\bpremiere\b/.test(title) ||
+    text.includes("live stream") ||
+    text.includes("premiere")
+  );
+}
+
+function shouldKeepYouTubeItem(item: Parser.Item, source: FeedSource): boolean {
+  if (!isYouTubeSource(source)) {
+    return true;
+  }
+
+  const includeShorts = source.includeShorts !== false;
+  const includeLive = source.includeLive !== false;
+
+  if (!includeShorts && isLikelyYouTubeShort(item.link || "")) {
+    return false;
+  }
+
+  if (!includeLive && isLikelyYouTubeLiveItem(item)) {
+    return false;
+  }
+
+  return true;
+}
+
+function normalizeArticle(
+  item: Parser.Item,
+  source: FeedSource,
+  sourceFeedUrl: string
+): Article {
   const readingTimeLabel = extractFeedReadTimeLabel(item as Record<string, unknown>);
   const authorName = extractFeedAuthorName(item as Record<string, unknown>);
   const resolvedAuthorName = authorName || getOpenAIAuthorFallback(source);
@@ -82,7 +133,7 @@ function normalizeArticle(item: Parser.Item, source: FeedSource): Article {
     sourceId: source.id,
     sourceName: source.name,
     sourceColor: source.color,
-    sourceFeedUrl: source.feedUrl,
+    sourceFeedUrl,
     readingTimeLabel,
     authorName: resolvedAuthorName,
     link: item.link || source.website,
@@ -110,11 +161,16 @@ export async function fetchSingleFeed(
   source: FeedSource
 ): Promise<FeedFetchResult> {
   try {
-    const feed = await parser.parseURL(source.feedUrl);
+    const resolvedFeedUrl =
+      isYouTubeUrl(source.feedUrl) && !isYouTubeFeedUrl(source.feedUrl)
+        ? await resolveYouTubeFeedUrl(source.feedUrl)
+        : source.feedUrl;
+    const feed = await parser.parseURL(resolvedFeedUrl);
     const nowMs = Date.now();
     const normalizedArticles = (feed.items || [])
       .filter((item) => matchesSourceCategoryFilter(item, source))
-      .map((item) => normalizeArticle(item, source))
+      .filter((item) => shouldKeepYouTubeItem(item, source))
+      .map((item) => normalizeArticle(item, source, resolvedFeedUrl))
       .filter((article) => isWithinFetchWindow(article.publishedAt, nowMs))
       .slice(0, 30);
 

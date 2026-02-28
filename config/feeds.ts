@@ -4,6 +4,9 @@ export interface FeedSource {
   feedUrl: string;
   website: string;
   color: string;
+  isYouTube?: boolean;
+  includeShorts?: boolean;
+  includeLive?: boolean;
   tier?: "core" | "normal" | "explore";
   lookbackDays?: number;
   maxUnreadVisible?: number;

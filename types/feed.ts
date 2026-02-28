@@ -26,6 +26,9 @@ export interface CustomFeedSource {
   feedUrl: string;
   website: string;
   color: string;
+  isYouTube?: boolean;
+  includeShorts?: boolean;
+  includeLive?: boolean;
   isCustom: true;
 }
 
@@ -35,6 +38,9 @@ export interface ValidateFeedResponse {
     name: string;
     website: string;
     feedUrl: string;
+    isYouTube?: boolean;
+    includeShorts?: boolean;
+    includeLive?: boolean;
     articles: Article[];
   };
   error?: string;

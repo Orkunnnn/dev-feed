@@ -5,6 +5,12 @@ import type { FeedSource } from "@/config/feeds";
 import type { Article, ValidateFeedResponse } from "@/types/feed";
 import { rankAndFilterArticlesForDeveloperFeed } from "@/lib/feed-policy";
 import {
+  buildYouTubeChannelFeedUrl,
+  extractYouTubeChannelIdFromUrl,
+  isYouTubeUrl,
+  resolveYouTubeFeedUrl,
+} from "@/lib/youtube";
+import {
   decodeHtmlEntities,
   extractFeedAuthorName,
   extractFeedReadTimeLabel,
@@ -31,6 +37,27 @@ const parser = new Parser({
   requestOptions: { agent },
 });
 
+const YOUTUBE_LOOKBACK_DAYS = 7;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function isPublishedWithinDays(
+  publishedAt: string,
+  nowMs: number,
+  lookbackDays: number
+): boolean {
+  const publishedMs = new Date(publishedAt).getTime();
+  if (!Number.isFinite(publishedMs)) {
+    return false;
+  }
+
+  const ageMs = nowMs - publishedMs;
+  if (ageMs < 0) {
+    return false;
+  }
+
+  return ageMs <= lookbackDays * MS_PER_DAY;
+}
+
 export async function POST(
   request: NextRequest
 ): Promise<NextResponse<ValidateFeedResponse>> {
@@ -53,11 +80,23 @@ export async function POST(
       );
     }
 
-    const feed = await parser.parseURL(feedUrl);
+    const resolvedFeedUrl = isYouTubeUrl(feedUrl)
+      ? await resolveYouTubeFeedUrl(feedUrl)
+      : feedUrl;
 
-    const feedHostname = new URL(feedUrl).hostname.toLowerCase();
+    const feed = await parser.parseURL(resolvedFeedUrl);
+
+    const canonicalYouTubeChannelId =
+      extractYouTubeChannelIdFromUrl(feed.link || "") ||
+      extractYouTubeChannelIdFromUrl(resolvedFeedUrl);
+    const canonicalFeedUrl = canonicalYouTubeChannelId
+      ? buildYouTubeChannelFeedUrl(canonicalYouTubeChannelId)
+      : resolvedFeedUrl;
+    const isYouTubeFeed = Boolean(canonicalYouTubeChannelId);
+
+    const feedHostname = new URL(canonicalFeedUrl).hostname.toLowerCase();
     const name = feed.title?.trim() || feedHostname;
-    const website = feed.link || feedUrl;
+    const website = feed.link || canonicalFeedUrl;
     const openaiAuthorFallback =
       feedHostname === "openai.com" || feedHostname.endsWith(".openai.com")
         ? "OpenAI"
@@ -66,9 +105,12 @@ export async function POST(
     const sourceForValidation: FeedSource = {
       id: "",
       name,
-      feedUrl,
+      feedUrl: canonicalFeedUrl,
       website,
       color: "",
+      isYouTube: isYouTubeFeed,
+      includeShorts: isYouTubeFeed ? true : undefined,
+      includeLive: isYouTubeFeed ? true : undefined,
       tier: "normal",
       lookbackDays: 14,
       maxUnreadVisible: 2,
@@ -87,7 +129,7 @@ export async function POST(
         sourceId: sourceForValidation.id,
         sourceName: name,
         sourceColor: "",
-        sourceFeedUrl: feedUrl,
+        sourceFeedUrl: canonicalFeedUrl,
         readingTimeLabel,
         authorName: resolvedAuthorName,
         link: item.link || website,
@@ -97,14 +139,29 @@ export async function POST(
       };
     });
 
+    const nowMs = Date.now();
+    const lookbackFilteredArticles = isYouTubeFeed
+      ? normalizedArticles.filter((article) =>
+          isPublishedWithinDays(article.publishedAt, nowMs, YOUTUBE_LOOKBACK_DAYS)
+        )
+      : normalizedArticles;
+
     const articles = rankAndFilterArticlesForDeveloperFeed(
-      normalizedArticles,
+      lookbackFilteredArticles,
       [sourceForValidation]
     );
 
     return NextResponse.json({
       success: true,
-      feed: { name, website, feedUrl, articles },
+      feed: {
+        name,
+        website,
+        feedUrl: canonicalFeedUrl,
+        isYouTube: isYouTubeFeed,
+        includeShorts: isYouTubeFeed ? true : undefined,
+        includeLive: isYouTubeFeed ? true : undefined,
+        articles,
+      },
     });
   } catch (error) {
     console.error("Feed validation failed:", error);
