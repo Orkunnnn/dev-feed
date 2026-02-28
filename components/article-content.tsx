@@ -232,6 +232,25 @@ function getParentTagName(node: ChildNode): string | undefined {
   return parentElement?.tagName.toLowerCase();
 }
 
+function isWithinPreformattedContext(node: ChildNode): boolean {
+  let current: Element | null =
+    node.parentElement ||
+    (node.parentNode && node.parentNode.nodeType === 1
+      ? (node.parentNode as Element)
+      : null);
+
+  while (current) {
+    const tag = current.tagName.toLowerCase();
+    if (tag === "pre" || tag === "code") {
+      return true;
+    }
+
+    current = current.parentElement;
+  }
+
+  return false;
+}
+
 function isDeployToCloudflareBadge(element: HTMLElement): boolean {
   if (element.tagName.toLowerCase() !== "img") {
     return false;
@@ -250,6 +269,10 @@ function isDeployToCloudflareBadge(element: HTMLElement): boolean {
 function toReactNode(node: ChildNode, key: string): ReactNode {
   if (node.nodeType === 3) {
     const text = node.textContent || "";
+
+    if (isWithinPreformattedContext(node)) {
+      return text;
+    }
 
     if (!text.trim()) {
       const parentTag = getParentTagName(node);
@@ -399,8 +422,8 @@ export function ArticleContent({ html, className }: Props) {
         "prose-td:border prose-td:border-border/60 prose-td:px-4 prose-td:py-3 prose-td:align-top prose-td:text-foreground/90",
         "[&_tbody_tr:nth-child(even)]:bg-muted/25",
         "max-sm:[&_table]:block max-sm:[&_table]:overflow-x-auto max-sm:[&_table]:whitespace-nowrap",
-        "prose-pre:bg-muted prose-pre:text-foreground prose-pre:overflow-x-auto prose-pre:rounded-md prose-pre:p-4 prose-pre:text-sm prose-pre:leading-relaxed",
-        "prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none",
+        "prose-pre:bg-muted prose-pre:text-foreground prose-pre:overflow-x-auto prose-pre:rounded-none prose-pre:p-4 prose-pre:text-sm prose-pre:leading-relaxed",
+        "prose-pre:font-mono prose-code:font-mono prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none",
         "[&_span.line-break-spacer]:block [&_span.line-break-spacer]:h-4",
         "[&_blockquote_[data-quote-owner=true]]:mt-5 [&_blockquote_[data-quote-owner=true]]:text-center [&_blockquote_[data-quote-owner=true]]:text-sm [&_blockquote_[data-quote-owner=true]]:font-normal [&_blockquote_[data-quote-owner=true]]:not-italic [&_blockquote_[data-quote-owner=true]]:text-muted-foreground",
         className

@@ -5,6 +5,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import Parser from "rss-parser";
 import sanitizeHtml from "sanitize-html";
+import hljs from "highlight.js/lib/common";
 import { feedSources } from "@/config/feeds";
 import {
   decodeHtmlEntities,
@@ -631,6 +632,154 @@ function sanitizeArticleHtml(rawHtml: string): string {
   return sanitized.replace(/<\/a>(?=[\p{L}\p{N}])/gu, "</a> ");
 }
 
+const LANGUAGE_ALIASES: Record<string, string> = {
+  js: "javascript",
+  jsx: "javascript",
+  ts: "typescript",
+  tsx: "typescript",
+  sh: "bash",
+  zsh: "bash",
+  shell: "bash",
+  yml: "yaml",
+  md: "markdown",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  cs: "csharp",
+  "c++": "cpp",
+};
+
+function resolveHighlightLanguage(raw: string): string | null {
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (hljs.getLanguage(normalized)) {
+    return normalized;
+  }
+
+  const alias = LANGUAGE_ALIASES[normalized];
+  if (alias && hljs.getLanguage(alias)) {
+    return alias;
+  }
+
+  return null;
+}
+
+function getLanguageHints(element: Element | null): string[] {
+  if (!element) {
+    return [];
+  }
+
+  const classHints = (element.getAttribute("class") || "")
+    .split(/\s+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => {
+      const languageMatch = name.match(/^language-([a-z0-9_+\-#.]+)$/i);
+      if (languageMatch) {
+        return languageMatch[1];
+      }
+
+      const langMatch = name.match(/^lang-([a-z0-9_+\-#.]+)$/i);
+      if (langMatch) {
+        return langMatch[1];
+      }
+
+      return null;
+    })
+    .filter((value): value is string => Boolean(value));
+
+  const dataHints = [
+    element.getAttribute("data-language"),
+    element.getAttribute("data-lang"),
+  ].filter((value): value is string => Boolean(value && value.trim()));
+
+  return [...dataHints, ...classHints];
+}
+
+function applySyntaxHighlightingToHtml(html: string): string {
+  if (!html.includes("<pre") || !html.includes("<code")) {
+    return html;
+  }
+
+  const { document } = parseHTML(`<html><body>${html}</body></html>`);
+  const root = document.body;
+  const codeBlocks = Array.from(root.querySelectorAll("pre > code"));
+
+  for (const codeBlock of codeBlocks) {
+    const code = codeBlock as Element;
+    const pre = code.parentElement;
+    const codeText = code.textContent || "";
+
+    if (!codeText.trim()) {
+      continue;
+    }
+
+    const hints = [...getLanguageHints(code), ...getLanguageHints(pre)];
+
+    let resolvedLanguage: string | null = null;
+    for (const hint of hints) {
+      const language = resolveHighlightLanguage(hint);
+      if (language) {
+        resolvedLanguage = language;
+        break;
+      }
+    }
+
+    let highlightedHtml: string;
+    let detectedLanguage: string | undefined;
+
+    try {
+      if (resolvedLanguage) {
+        const highlighted = hljs.highlight(codeText, {
+          language: resolvedLanguage,
+          ignoreIllegals: true,
+        });
+        highlightedHtml = highlighted.value;
+        detectedLanguage = resolvedLanguage;
+      } else {
+        const highlighted = hljs.highlightAuto(codeText);
+        highlightedHtml = highlighted.value;
+        detectedLanguage = highlighted.language;
+      }
+    } catch {
+      continue;
+    }
+
+    code.innerHTML = highlightedHtml;
+
+    const codeClasses = new Set(
+      (code.getAttribute("class") || "")
+        .split(/\s+/)
+        .map((name) => name.trim())
+        .filter(Boolean)
+    );
+    codeClasses.add("hljs");
+
+    if (detectedLanguage) {
+      codeClasses.add(`language-${detectedLanguage}`);
+      code.setAttribute("data-language", detectedLanguage);
+    }
+
+    code.setAttribute("class", [...codeClasses].join(" "));
+
+    if (pre) {
+      const preClasses = new Set(
+        (pre.getAttribute("class") || "")
+          .split(/\s+/)
+          .map((name) => name.trim())
+          .filter(Boolean)
+      );
+      preClasses.add("hljs");
+      pre.setAttribute("class", [...preClasses].join(" "));
+    }
+  }
+
+  return root.innerHTML.trim();
+}
+
 function normalizeSpaces(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -1020,9 +1169,10 @@ async function getFallbackFromFeed(
       if (!rawContent.trim()) continue;
 
       const sanitizedHtml = sanitizeArticleHtml(toHtmlContent(rawContent));
-      const readingTimeLabel = extractReadTimeLabelFromContent(sanitizedHtml);
+      const highlightedHtml = applySyntaxHighlightingToHtml(sanitizedHtml);
+      const readingTimeLabel = extractReadTimeLabelFromContent(highlightedHtml);
       const { authors, content: contentWithoutAuthorLine } =
-        extractLeadingLinkedInAuthors(sanitizedHtml, articleUrl);
+        extractLeadingLinkedInAuthors(highlightedHtml, articleUrl);
       const mergedAuthors = mergeAuthorProfiles(authors);
       const cleanHtml = stripLeadingFeedMetadata(
         contentWithoutAuthorLine,
@@ -1110,9 +1260,10 @@ async function fetchArticleContentUncached(
     }
 
     const sanitizedHtml = sanitizeArticleHtml(article.content);
-    const readingTimeLabel = extractReadTimeLabelFromContent(sanitizedHtml);
+    const highlightedHtml = applySyntaxHighlightingToHtml(sanitizedHtml);
+    const readingTimeLabel = extractReadTimeLabelFromContent(highlightedHtml);
     const { authors, content: contentWithoutAuthorLine } =
-      extractLeadingLinkedInAuthors(sanitizedHtml, response.url || url);
+      extractLeadingLinkedInAuthors(highlightedHtml, response.url || url);
     const mergedAuthors = mergeAuthorProfiles(documentAuthors, authors);
     const resolvedAuthorName =
       mergedAuthors.length > 0
