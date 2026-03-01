@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { AppIcon } from "@/components/app-icon";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { FeedSettings } from "@/components/feed-settings";
+import { CommandCenterButton } from "@/components/command-center";
 import { Button } from "@/components/ui/button";
 import { useArticleHeaderContext } from "@/components/article-header-context";
 import { cn } from "@/lib/utils";
@@ -151,8 +150,7 @@ export function FeedHeader() {
                 ) : null}
               </div>
               <div className="ml-auto flex items-center gap-1">
-                <FeedSettings />
-                <ThemeToggle />
+                <CommandCenterButton />
               </div>
             </div>
 

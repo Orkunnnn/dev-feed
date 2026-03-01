@@ -15,6 +15,7 @@ import { ArticleReader } from "./article-reader";
 import { InboxRow } from "./inbox-row";
 import { useFeedContext } from "./feed-provider";
 import { useArticleHeaderContext } from "./article-header-context";
+import { useCommandCenter } from "./command-center-provider";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   loadArticleContent,
@@ -235,6 +236,8 @@ function matchesSearch(article: Article, query: string): boolean {
 
 export function ArticleList({ articles }: Props) {
   const { customArticles, allSources, isLoadingCustom } = useFeedContext();
+  const { openCommandCenter, feedSearchQuery, setSearchableArticles } =
+    useCommandCenter();
   const { setArticleHeaderState, clearArticleHeaderState } =
     useArticleHeaderContext();
   const pathname = usePathname();
@@ -247,7 +250,6 @@ export function ArticleList({ articles }: Props) {
     searchParams.get("article")
   );
   const [isDesktop, setIsDesktop] = useState(false);
-  const [query, setQuery] = useState("");
   const [activeFolderStorage, setActiveFolder] = useLocalStorage<InboxFolder>(
     "rss-dev-feed-active-folder",
     "feed"
@@ -519,6 +521,10 @@ export function ArticleList({ articles }: Props) {
     return [...unread, ...read];
   }, [isArticleRead, isArticleSavedForLater, visibleRankedArticles]);
 
+  useEffect(() => {
+    setSearchableArticles(feedArticles);
+  }, [feedArticles, setSearchableArticles]);
+
   const readLaterArticles = useMemo(
     () =>
       Object.entries(readLaterEntriesByKey)
@@ -608,7 +614,7 @@ export function ArticleList({ articles }: Props) {
     [folderArticles, uncheckedSourceIds]
   );
 
-  const normalizedQuery = query.toLowerCase().trim();
+  const normalizedQuery = feedSearchQuery.toLowerCase().trim();
 
   const filtered = useMemo(
     () => filteredBySource.filter((article) => matchesSearch(article, normalizedQuery)),
@@ -943,12 +949,20 @@ export function ArticleList({ articles }: Props) {
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="h-8 pl-8"
+              value={feedSearchQuery}
+              readOnly
+              onClick={openCommandCenter}
+              onFocus={(event) => {
+                event.target.blur();
+                openCommandCenter();
+              }}
+              className="h-8 cursor-pointer pl-8 pr-14"
               placeholder="Search feed"
               aria-label="Search feed"
             />
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-sm border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              ⌘K
+            </span>
           </div>
 
           <SourceFilter
@@ -971,7 +985,7 @@ export function ArticleList({ articles }: Props) {
 
       <div
         className={cn(
-          "overflow-y-auto",
+          "overflow-y-auto [scrollbar-color:var(--muted-foreground)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/55",
           isDesktop ? "min-h-0 flex-1" : "max-h-[calc(100dvh-12.5rem)]"
         )}
       >

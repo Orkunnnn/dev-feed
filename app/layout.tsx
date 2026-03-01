@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import { Geist, Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { FeedProvider } from "@/components/feed-provider";
+import { CommandCenterProvider } from "@/components/command-center-provider";
+import { CommandCenter } from "@/components/command-center";
 import "./globals.css";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
@@ -61,7 +63,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <FeedProvider>
-            {children}
+            <CommandCenterProvider>
+              {children}
+              <CommandCenter />
+            </CommandCenterProvider>
           </FeedProvider>
         </ThemeProvider>
       </body>
